@@ -102,21 +102,89 @@ def test_extract_files_content(temp_directory, sample_query):
 
 
 
-# TODO: test with include patterns: ['*.txt']
-# TODO: test with wrong include patterns: ['*.qwerty']
+def test_include_pattern_txt(temp_directory, sample_query):
+    """Test including only .txt files"""
+    sample_query['pattern_type'] = 'include'
+    sample_query['include_patterns'] = ['*.txt']
+    
+    nodes = scan_directory(
+        str(temp_directory),
+        query=sample_query
+    )
+    
+    files = extract_files_content(sample_query, nodes, max_file_size=1000000)
+    
+    # Should only include .txt files
+    assert len(files) == 5  # All .txt files
+    paths = [f['path'] for f in files]
+    assert all('.txt' in p for p in paths)
+    assert not any('.py' in p for p in paths)
 
+def test_include_pattern_nonexistent(temp_directory, sample_query):
+    """Test with pattern that matches no files"""
+    sample_query['pattern_type'] = 'include'
+    sample_query['include_patterns'] = ['*.qwerty']
+    
+    nodes = scan_directory(
+        str(temp_directory),
+        query=sample_query
+    )
+    
+    files = extract_files_content(sample_query, nodes, max_file_size=1000000)
+    assert len(files) == 0  # No files should match
 
-#single folder patterns
-# TODO: test with include patterns: ['src/*']
-# TODO: test with include patterns: ['/src/*']
-# TODO: test with include patterns: ['/src/']
-# TODO: test with include patterns: ['/src*']
+def test_include_pattern_src_folder(temp_directory, sample_query):
+    """Test various src folder pattern variations"""
+    pattern_tests = [
+        ('src/*', 2),      # Files directly in src
+        ('/src/*', 2),     # Same with leading slash
+        ('/src/', 4),      # All files in src and subdirs
+        ('/src*', 4),      # All files in src and subdirs
+    ]
+    
+    for pattern, expected_count in pattern_tests:
+        sample_query['pattern_type'] = 'include'
+        sample_query['include_patterns'] = [pattern]
+        
+        nodes = scan_directory(
+            str(temp_directory),
+            query=sample_query
+        )
+        
+        files = extract_files_content(sample_query, nodes, max_file_size=1000000)
+        assert len(files) == expected_count, f"Pattern '{pattern}' should match {expected_count} files"
+        
+        paths = [f['path'] for f in files]
+        assert all('src' in p for p in paths), f"Pattern '{pattern}' should only match files in src directory"
 
-#multiple patterns
-# TODO: test with multiple include patterns: ['*.txt', '*.py']
-# TODO: test with multiple include patterns: ['/src/*', '*.txt']
-# TODO: test with multiple include patterns: ['/src*', '*.txt']
-
+def test_multiple_include_patterns(temp_directory, sample_query):
+    """Test combinations of multiple include patterns"""
+    pattern_tests = [
+        (['*.txt', '*.py'], 8),                # All text and python files
+        (['/src/*', '*.txt'], 6),              # All files in src + all txt files
+        (['/src*', '*.txt'], 7),               # All files in src tree + all txt files
+    ]
+    
+    for patterns, expected_count in pattern_tests:
+        sample_query['pattern_type'] = 'include'
+        sample_query['include_patterns'] = patterns
+        
+        nodes = scan_directory(
+            str(temp_directory),
+            query=sample_query
+        )
+        
+        files = extract_files_content(sample_query, nodes, max_file_size=1000000)
+        assert len(files) == expected_count, f"Patterns {patterns} should match {expected_count} files"
+        
+        # Verify specific pattern matches
+        paths = [f['path'] for f in files]
+        if '*.txt' in patterns:
+            assert any('.txt' in p for p in paths)
+        if '*.py' in patterns:
+            assert any('.py' in p for p in paths)
+        if any('src' in p for p in patterns):
+            assert any('/src/' in p for p in paths)
 
 
 
